@@ -1,5 +1,7 @@
 import boto3
 import subprocess
+import time
+import os, requests
 
 client = boto3.client("bedrock-runtime", region_name="ap-south-1")
 
@@ -117,6 +119,75 @@ def push_to_github():
     except subprocess.CalledProcessError as e:
         print(f"\nGithub push failed.")
         return False
+    
+def push_feature_branch():
+    branch_name = f"ai-generated-{int(time.time())}"
+    try:
+        print(f"\nCreating branch: {branch_name}")
+        
+        subprocess.run(
+            ["git", "checkout", "-b", branch_name], check=True
+            )
+        
+        subprocess.run(
+            ["git", "add", "."], check=True
+            )
+        
+        subprocess.run(
+            ["git", "commit", "-m", "AI generated terraform infrastructure"], check=True
+        )
+        
+        subprocess.run(
+            ["git", "push", "-u", "origin", branch_name], check=True
+        )    
+        
+        print(f"\nFeature branch pushed successfully")
+       
+        return True, branch_name
+   
+    except subprocess.CalledProcessError:
+        print(f"\nBranch push failed.")
+        return False, None
+
+
+def create_pull_request(branch_name):
+    token = os.getenv("GITHUB_TOKEN")
+
+    repo_owner = "sakhamuri123"
+    repo_name = "ai-platform-agent"
+
+    url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/pulls"
+
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json"
+    }
+
+    payload = {
+        "title": "AI Generated Infrastructure Change",
+        "head": branch_name,
+        "base": "main",
+        "body": "This PR was automatically created by AI infrastructure agent."
+    }
+
+    response = requests.post(
+        url,
+        headers=headers,
+        json=payload
+    )
+
+    if response.status_code == 201:
+        print("\nPull Request created successfully!")
+        print(response.json()["html_url"])
+        return True
+    else:
+        print("\nPR creation failed")
+        print(response.text)
+        return False
+    
+
+         
+        
 
 def fix_terraform_code(original_code, error_message):
     prompt = f"""
@@ -147,25 +218,43 @@ if __name__ == "__main__":
     for attempt in range(max_retries):
         print(f"\nAttempt {attempt + 1} of {max_retries}")
         
+        # Step 1: Clean LLM output
         cleaned_code = clean_output(tf_code)
+        
+        # Step 2: Write Terraform file
         write_to_file(cleaned_code)
         
+        # Step 3: Validate Terraform
         success, error = validate_terraform()
         
         if success:
             print("\nTerraform code is valid!")
             
+            # step 4: Terraforrm plan
             plan_success, plan_output = terraform_plan()
             
             if plan_success:
                 print("\n Terraform plan successfull!")
-                git_success = push_to_github()
                 
-                if git_Success:
-                    print("\nInfrastructure code successfully pushed to github")
+                # Step 5: Create feature branch + push
+                branch_success, branch_name = push_feature_branch()
+                
+                if branch_success:
+                   print(f"\nBranch {branch_name} created and code pushed successfully!")
+                   
+                   #step6: create pull request 
+                   pr_success = create_pull_request(branch_name)
+                  
+                   if pr_success:
+                       print(f"\nGitops workflow completed successfully")
+                       break
+                   else:
+                       print(f"\nPR creation failed")
+                       break
                 else:
-                    print("\nFailed to push code to github")
-                break
+                    print(f"\n Feature branch push failed")
+                    break    
+                    
             else:
                 print("\n Terraform plan failed")
                 break
