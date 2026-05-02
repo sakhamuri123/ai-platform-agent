@@ -5,6 +5,19 @@ import os, requests
 
 client = boto3.client("bedrock-runtime", region_name="ap-south-1")
 
+def generate_backend_config(env='dev', service='network'):
+    return f"""
+  terraform {{
+      backend "s3" {{
+          bucket = "rajesh-platform-tf-state"
+          key  = "{env}/{service}/terraform.tfstate"
+          region = "ap-south-1"
+          dynamodb_table = "terraform-locks"
+          encrypt = true
+      }}
+  }}
+  """
+  
 def ask_llm(prompt):
     response = client.converse(
         modelId="anthropic.claude-3-haiku-20240307-v1:0",
@@ -29,7 +42,7 @@ def ask_llm(prompt):
 
 def generate_terraform():
     prompt = """
-Generate production-ready Terraform code in ap-south-1 region for:
+Generate ONLY Terraform resource blocks for AWS infrastructure.
 
 1. AWS VPC
 2. Public subnet
@@ -44,6 +57,9 @@ STRICT RULES:
 - No markdowns
 - No ``` blocks
 - No introductory text
+- Do not include terraform block 
+- Do not include provider block
+- Only resource definitions
 """
 
     return ask_llm(prompt)
@@ -56,11 +72,23 @@ def clean_output(tf_code):
     
     return tf_code.strip()
 
-def write_to_file(terraform_code):
-    filename = "main.tf"
-    with open(filename, "w") as f:
-        f.write(terraform_code)
-    print(f"Terraform code saved to {filename}")
+def write_to_file(terraform_code, env='dev', service='network'):
+    backend = generate_backend_config(env, service)
+    
+    full_code = f"""
+    provider "aws" {{
+        region = "ap-south-1"
+    }}
+    
+    {backend}
+    
+    {terraform_code}
+    """
+    
+    with open("main.tf", "w") as f:
+        f.write(full_code.strip())
+        
+        print("\nTerraform code with backend written to main.tf")
 
 
     
@@ -71,7 +99,7 @@ def validate_terraform():
         subprocess.run(["terraform", "fmt"], check=True)
         
         print("\nRunning terraform init ...")
-        subprocess.run(["terraform", "init"], check=True)
+        subprocess.run(["terraform", "init", "-reconfigure"], check=True)
         
         print("\nRunning terraform validate ...")
         subprocess.run(["terraform", "validate"], check=True, capture_output=True, text=True)
@@ -209,6 +237,8 @@ def fix_terraform_code(original_code, error_message):
     """
     
     return ask_llm(prompt)
+
+# Main flow the code generation, validation, and github workflow
          
 if __name__ == "__main__":
     tf_code = generate_terraform()
@@ -222,7 +252,7 @@ if __name__ == "__main__":
         cleaned_code = clean_output(tf_code)
         
         # Step 2: Write Terraform file
-        write_to_file(cleaned_code)
+        write_to_file(cleaned_code,env='dev', service='network')
         
         # Step 3: Validate Terraform
         success, error = validate_terraform()
