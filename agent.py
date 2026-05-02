@@ -42,7 +42,7 @@ def ask_llm(prompt):
 
 def generate_terraform():
     prompt = """
-Generate ONLY Terraform resource blocks for AWS infrastructure.
+Generate ONLY Terraform resource blocks for AWS infrastructure only in ap-south-1 region.
 
 1. AWS VPC
 2. Public subnet
@@ -60,6 +60,8 @@ STRICT RULES:
 - Do not include terraform block 
 - Do not include provider block
 - Only resource definitions
+- DO NOT hardcode availability zones
+- Use data.aws_availability_zones for AZ selection
 """
 
     return ask_llm(prompt)
