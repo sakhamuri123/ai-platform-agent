@@ -120,7 +120,7 @@ def terraform_plan():
         print(f"\nRunning terraform plan ...")
         
         result = subprocess.run(
-            ["terraform", "plan"],
+            ["terraform", "plan", "-no-color"],
             check=True,
             capture_output=True,
             text=True
@@ -155,11 +155,15 @@ def analyze_plan(plan_output):
             analysis["change"] = int(parts[1].split()[0])
             analysis["destroy"] = int(parts[2].split()[0])
             """
-    match = re.search(r"Plan:\s+(\d+)\s+to add,\s+(\d+)\s+to change,\s+(\d+)\s+to destroy", plan_output)
+    match = re.search(r"Plan:\s+(\d+)\s+to add,\s+(\d+)\s+to change,\s+(\d+)\s+to destroy", plan_output, re.IGNORECASE | re.MULTILINE)
     if match:
         analysis["add"] = int(match.group(1))
         analysis["change"] = int(match.group(2))
         analysis["destroy"] = int(match.group(3))
+    if not match:
+        print("\nDEBUG: Plan line not found in output") 
+        
+               
 
     # Simple risk analysis based on the number of changes
     if analysis["destroy"] > 0:
