@@ -1,7 +1,7 @@
 import boto3
 import subprocess
 import time
-import os, requests
+import os, requests, re
 
 client = boto3.client("bedrock-runtime", region_name="ap-south-1")
 
@@ -142,11 +142,11 @@ def analyze_plan(plan_output):
         "add": 0,
         "change": 0,
         "destroy": 0,
-        "risk": "Low",
+        "risk": "LOW",
         "warnings": []
     }
     # Extract summary line from the plan output
-    
+    """
     for line in plan_output.splitlines():
         if line.startswith("Plan:"):
             # Example: Plan: 6 to add, 0 to change, 0 to destroy
@@ -154,7 +154,13 @@ def analyze_plan(plan_output):
             analysis["add"] = int(parts[0].split()[1])
             analysis["change"] = int(parts[1].split()[0])
             analysis["destroy"] = int(parts[2].split()[0])
-            
+            """
+    match = re.search(r"Plan:\s+(\d+)\s+to add,\s+(\d+)\s+to change,\s+(\d+)\s+to destroy", plan_output)
+    if match:
+        analysis["add"] = int(match.group(1))
+        analysis["change"] = int(match.group(2))
+        analysis["destroy"] = int(match.group(3))
+
     # Simple risk analysis based on the number of changes
     if analysis["destroy"] > 0:
         analysis["risk"] = "High"
