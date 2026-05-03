@@ -1,7 +1,7 @@
 import boto3
 import subprocess
 import time
-import os, requests
+import os, requests, re
 
 client = boto3.client("bedrock-runtime", region_name="ap-south-1")
 
@@ -120,7 +120,7 @@ def terraform_plan():
         print(f"\nRunning terraform plan ...")
         
         result = subprocess.run(
-            ["terraform", "plan"],
+            ["terraform", "plan", "-no-color"],
             check=True,
             capture_output=True,
             text=True
@@ -134,6 +134,71 @@ def terraform_plan():
         print(f"Error during terraform plan:")
         
         return False, e.stderr
+    
+# Analyzing the plan for risk analysis could be an additional step here where we parse the plan output and look for any destructive changes. For simplicity, we are skipping that step in this implementation.
+
+def analyze_plan(plan_output):
+    analysis = {
+        "add": 0,
+        "change": 0,
+        "destroy": 0,
+        "risk": "LOW",
+        "warnings": []
+    }
+    # Extract summary line from the plan output
+    """
+    for line in plan_output.splitlines():
+        if line.startswith("Plan:"):
+            # Example: Plan: 6 to add, 0 to change, 0 to destroy
+            parts = line.split(",")
+            analysis["add"] = int(parts[0].split()[1])
+            analysis["change"] = int(parts[1].split()[0])
+            analysis["destroy"] = int(parts[2].split()[0])
+            """
+    match = re.search(r"Plan:\s+(\d+)\s+to add,\s+(\d+)\s+to change,\s+(\d+)\s+to destroy", plan_output, re.IGNORECASE | re.MULTILINE)
+    if match:
+        analysis["add"] = int(match.group(1))
+        analysis["change"] = int(match.group(2))
+        analysis["destroy"] = int(match.group(3))
+    if not match:
+        print("\nDEBUG: Plan line not found in output") 
+        
+               
+
+    # Simple risk analysis based on the number of changes
+    if analysis["destroy"] > 0:
+        analysis["risk"] = "High"
+        analysis["warnings"].append("Destructive changes detected!")
+    
+    # Basic cost awreness
+    
+    if "aws_nat_gateway" in plan_output:
+        analysis["warnings"].append("NAT Gateway detected (high cost)")
+        
+    if "0.0.0.0/0" in plan_output:
+        analysis["warnings"].append("Open access detected (0.0.0.0/0)")
+        
+    return analysis
+
+# Generate human redable summary of the plan analysis to be included in the PR description
+
+def generate_summary(analysis):
+    #Input: analysis (dictionary from analyze_plan)
+    summary = f"""
+### AI Infrastructure Analysis
+
+- Resources to add: {analysis['add']}
+- Resources to change: {analysis['change']}
+- Resources to destroy: {analysis['destroy']}
+- Risk level: {analysis['risk']}
+"""
+    if analysis["warnings"]:
+       summary += "\n\n ## warnings: \n"
+       for w in analysis["warnings"]:
+           summary += f"- {w}\n"
+           
+    return summary
+           
 
 def push_to_github():
     try:
@@ -180,13 +245,20 @@ def push_feature_branch():
         return False, None
 
 
-def create_pull_request(branch_name):
+def create_pull_request(branch_name, plan_output):
     token = os.getenv("GITHUB_TOKEN")
+    
+    if not token:
+        print("\nGITHUB_TOKEN not found in environment variables.")
+        return False
 
     repo_owner = "sakhamuri123"
     repo_name = "ai-platform-agent"
 
     url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/pulls"
+    
+    analysis = analyze_plan(plan_output)
+    summary = generate_summary(analysis)
 
     headers = {
         "Authorization": f"token {token}",
@@ -197,7 +269,7 @@ def create_pull_request(branch_name):
         "title": "AI Generated Infrastructure Change",
         "head": branch_name,
         "base": "main",
-        "body": "This PR was automatically created by AI infrastructure agent."
+        "body": summary
     }
 
     response = requests.post(
@@ -275,7 +347,7 @@ if __name__ == "__main__":
                    print(f"\nBranch {branch_name} created and code pushed successfully!")
                    
                    #step6: create pull request 
-                   pr_success = create_pull_request(branch_name)
+                   pr_success = create_pull_request(branch_name, plan_output)
                   
                    if pr_success:
                        print(f"\nGitops workflow completed successfully")
