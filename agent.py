@@ -198,6 +198,40 @@ def generate_summary(analysis):
            summary += f"- {w}\n"
            
     return summary
+
+# defining tfsec for any potential security issues in the code could be an additional step here.
+
+def run_tfsec():
+    try:
+        print("\nRunning tfsec security scan..")
+        
+        result = subprocess.run(
+            ["tfsec", ".", "--no-color"],
+            capture_output=True,
+            text=True
+        )
+        
+        print(result.stdout)
+        return result.stdout
+    
+    except Exception as e:
+        print(f"\nError running tfsec: {e}")
+        return ""
+    
+# Analyzing tfsec output for security issues could be an additional step here where we parse the tfsec output and look for any critical issues.
+def analyze_tfsec(tfsec_output):
+    findings = []
+    if "HIGH" in tfsec_output:
+        findings.append("High security issues detected in tfsec scan!")
+        
+    if "CRITICAL" in tfsec_output:
+        findings.append("Critical swecurity issues detected in tfsec scan!")
+    
+    if "0.0.0.0.0/0" in tfsec_output:
+        findings.append("Open access detected in tfsec scan!")
+                        
+    return findings
+
            
 
 def push_to_github():
@@ -257,8 +291,17 @@ def create_pull_request(branch_name, plan_output):
 
     url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/pulls"
     
+    tfsec_output = run_tfsec()
+    security_findings = analyze_tfsec(tfsec_output)
+    
     analysis = analyze_plan(plan_output)
     summary = generate_summary(analysis)
+    
+    if security_findings:
+        summary += "\n\n## Security Findings from tfsec:\n"
+        for f in security_findings:
+            summary += f"- {f}\n"
+    
 
     headers = {
         "Authorization": f"token {token}",
