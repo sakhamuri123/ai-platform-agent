@@ -221,7 +221,7 @@ def run_tfsec():
 # Analyzing tfsec output for security issues could be an additional step here where we parse the tfsec output and look for any critical issues.
 def analyze_tfsec(tfsec_output):
     findings = []
-    if "HIGH" in tfsec.outout:
+    if "HIGH" in tfsec_output:
         findings.append("High security issues detected in tfsec scan!")
         
     if "CRITICAL" in tfsec_output:
