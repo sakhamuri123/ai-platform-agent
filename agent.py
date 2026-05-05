@@ -146,21 +146,25 @@ def analyze_plan(plan_output):
         "warnings": []
     }
     # Extract summary line from the plan output
-    """
-    for line in plan_output.splitlines():
-        if line.startswith("Plan:"):
-            # Example: Plan: 6 to add, 0 to change, 0 to destroy
-            parts = line.split(",")
-            analysis["add"] = int(parts[0].split()[1])
-            analysis["change"] = int(parts[1].split()[0])
-            analysis["destroy"] = int(parts[2].split()[0])
-            """
+    
+    # case 1: Normal plan with changes
+    # Plan: 6 to add, 0 to change, 0 to destroy.
+    
     match = re.search(r"Plan:\s+(\d+)\s+to add,\s+(\d+)\s+to change,\s+(\d+)\s+to destroy", plan_output, re.IGNORECASE | re.MULTILINE)
     if match:
         analysis["add"] = int(match.group(1))
         analysis["change"] = int(match.group(2))
         analysis["destroy"] = int(match.group(3))
-    if not match:
+        
+    # case 2: No changes
+    # No changes. Infrastructure is up-to-date.
+    elif "No changes" in plan_output:
+        analysis["add"] = 0
+        analysis["change"] = 0
+        analysis["destroy"] = 0 
+        analysis["warnings"].append("No changes detected in terraform plan.")
+        
+    else:
         print("\nDEBUG: Plan line not found in output") 
         
                
@@ -226,6 +230,9 @@ def analyze_tfsec(tfsec_output):
         
     if "CRITICAL" in tfsec_output:
         findings.append("Critical swecurity issues detected in tfsec scan!")
+    
+    if "MEDIUM" in tfsec_output:
+        findings.append("Medium security issues detected in tfsec scan!")
     
     if "0.0.0.0.0/0" in tfsec_output:
         findings.append("Open access detected in tfsec scan!")
@@ -382,6 +389,25 @@ if __name__ == "__main__":
             
             if plan_success:
                 print("\n Terraform plan successfull!")
+                
+                # Analyze plan BEFORE pushing code
+                analysis = analyze_plan(plan_output)
+                print(f"""
+================ AI Decision Summary ================
+
+Resources to Add    : {analysis['add']}
+Resources to Change : {analysis['change']}
+Resources to Destroy: {analysis['destroy']}
+Risk Level          : {analysis['risk']}
+
+====================================================
+""")
+                
+                # Skip PR and push branch if there are no changes.
+                
+                if analysis["add"] == 0 and analysis["change"] == 0 and analysis["destroy"] == 0:
+                    print("\nNo changes detected in terraform plan. Skipping PR creation.")
+                    break   
                 
                 # Step 5: Create feature branch + push
                 branch_success, branch_name = push_feature_branch()
