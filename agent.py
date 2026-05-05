@@ -49,6 +49,7 @@ Generate ONLY Terraform resource blocks for AWS infrastructure only in ap-south-
 3. Private subnet
 4. Internet gateway
 5. Route tables
+6. NAT Gateway
 
 STRICT RULES:
 
@@ -239,6 +240,26 @@ def analyze_tfsec(tfsec_output):
                         
     return findings
 
+# Cost detection function could be an additional step here where we parse the plan output and look for any high cost resources like NAT gateways, RDS instances, etc.
+
+def analyze_cost(plan_output):
+    cost_warnings = []
+    
+    if "aws_nat_gateway" in plan_output:
+        cost_warnings.append("NAT Gateway detected (high cost) (~$30-50/month + data charges)")
+    
+    if "aws_lb" in plan_output or "aws_alb" in plan_output:
+        cost_warnings.append("Load Balancer detected (potential cost) (hourly + data cost)")
+    
+    if "aws_instance" in plan_output:
+        cost_warnings.append("EC2 instance detected (potential cost depends on instance type)")
+        
+        
+    if "aws_db_instance" in plan_output:
+        cost_warnings.append("RDS instance detected (potentially high cost)")
+        
+    return cost_warnings
+
            
 
 def push_to_github():
@@ -304,10 +325,17 @@ def create_pull_request(branch_name, plan_output):
     analysis = analyze_plan(plan_output)
     summary = generate_summary(analysis)
     
+    cost_warnings = analyze_cost(plan_output)
+    
     if security_findings:
         summary += "\n\n## Security Findings from tfsec:\n"
         for f in security_findings:
             summary += f"- {f}\n"
+            
+    if cost_warnings:
+        summary += "\n\n## Cost Warnings:\n"
+        for c in cost_warnings:
+            summary += f"- {c}\n"
     
 
     headers = {
