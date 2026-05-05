@@ -225,20 +225,22 @@ def run_tfsec():
     
 # Analyzing tfsec output for security issues could be an additional step here where we parse the tfsec output and look for any critical issues.
 def analyze_tfsec(tfsec_output):
-    findings = []
-    if "HIGH" in tfsec_output:
-        findings.append("High security issues detected in tfsec scan!")
-        
+    policy = {
+        "block": False,
+        "warnings": [],
+        "details": []
+    }
     if "CRITICAL" in tfsec_output:
-        findings.append("Critical swecurity issues detected in tfsec scan!")
-    
+        policy["block"] = True
+        policy["warnings"].append("Critical security issues detected by tfsec!")
+    if "HIGH" in tfsec_output:
+        policy["warnings"].append("High severity security issues detected by tfsec!")
     if "MEDIUM" in tfsec_output:
-        findings.append("Medium security issues detected in tfsec scan!")
+        policy["warnings"].append("Medium severity security issues detected by tfsec!")
+    if "0.0.0.0/0" in tfsec_output:
+        policy["warnings"].append("Open access detected in security scan")
+    return policy  
     
-    if "0.0.0.0.0/0" in tfsec_output:
-        findings.append("Open access detected in tfsec scan!")
-                        
-    return findings
 
 # Cost detection function could be an additional step here where we parse the plan output and look for any high cost resources like NAT gateways, RDS instances, etc.
 
@@ -307,7 +309,7 @@ def push_feature_branch():
         return False, None
 
 
-def create_pull_request(branch_name, plan_output):
+def create_pull_request(branch_name, plan_output,policy,cost_warnings):
     token = os.getenv("GITHUB_TOKEN")
     
     if not token:
@@ -325,7 +327,7 @@ def create_pull_request(branch_name, plan_output):
     analysis = analyze_plan(plan_output)
     summary = generate_summary(analysis)
     
-    cost_warnings = analyze_cost(plan_output)
+    
     
     if security_findings:
         summary += "\n\n## Security Findings from tfsec:\n"
@@ -336,6 +338,11 @@ def create_pull_request(branch_name, plan_output):
         summary += "\n\n## Cost Warnings:\n"
         for c in cost_warnings:
             summary += f"- {c}\n"
+    # policy warnings
+    if policy["warnings"]:
+        summary += "\n\n## Policy Warnings:\n"
+        for w in policy["warnings"]:
+            summary += f"- {w}\n"
     
 
     headers = {
@@ -435,7 +442,17 @@ Risk Level          : {analysis['risk']}
                 
                 if analysis["add"] == 0 and analysis["change"] == 0 and analysis["destroy"] == 0:
                     print("\nNo changes detected in terraform plan. Skipping PR creation.")
-                    break   
+                    break  
+                
+                tfsec_output = run_tfsec()
+                cost_warnings = analyze_cost(plan_output)
+                policy = analyze_tfsec(tfsec_output)
+                if policy["block"]:
+                    print("\nPolicy violation detected. Blocking PR creation.")
+                    print(f"\nreasons")
+                    for w in policy["warnings"]:
+                        print(f"- {w}")
+                    break 
                 
                 # Step 5: Create feature branch + push
                 branch_success, branch_name = push_feature_branch()
@@ -444,7 +461,7 @@ Risk Level          : {analysis['risk']}
                    print(f"\nBranch {branch_name} created and code pushed successfully!")
                    
                    #step6: create pull request 
-                   pr_success = create_pull_request(branch_name, plan_output)
+                   pr_success = create_pull_request(branch_name, plan_output,policy,cost_warnings)
                   
                    if pr_success:
                        print(f"\nGitops workflow completed successfully")
