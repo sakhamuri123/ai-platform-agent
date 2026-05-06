@@ -174,6 +174,14 @@ def analyze_plan(plan_output):
     if analysis["destroy"] > 0:
         analysis["risk"] = "High"
         analysis["warnings"].append("Destructive changes detected!")
+        
+    if analysis["change"] > 5:
+        analysis["risk"] = "Medium"
+        analysis["warnings"].append("Large infrastructure modification detected, More than 5 changes detected, review recommended.")
+        
+    if analysis["add"] > 10:
+        analysis["risk"] = "Medium"
+        analysis["warnings"].append("Larged infrastructure deployment detected.")
     
     # Basic cost awreness
     
@@ -262,6 +270,17 @@ def analyze_cost(plan_output):
         
     return cost_warnings
 
+def approval_decision(analysis, policy):
+    if policy["block"]:
+        return "BLOCK, Policy violation detected. PR creation blocked."
+    if analysis["risk"] == "High":
+        return "Manual approval required"
+    if analysis["risk"] == "Medium":
+        return "Review recommended"
+    
+    return "Auto-approved"
+    
+
            
 
 def push_to_github():
@@ -309,7 +328,7 @@ def push_feature_branch():
         return False, None
 
 
-def create_pull_request(branch_name, plan_output,policy,cost_warnings):
+def create_pull_request(branch_name, plan_output,policy,cost_warnings,decision):
     token = os.getenv("GITHUB_TOKEN")
     
     if not token:
@@ -343,6 +362,11 @@ def create_pull_request(branch_name, plan_output,policy,cost_warnings):
         summary += "\n\n## Policy Warnings:\n"
         for w in policy["warnings"]:
             summary += f"- {w}\n"
+    # approval decision into summary
+    summary += f"""\n\n #Approval decision
+              - {decision}\n
+              """
+              
     
 
     headers = {
@@ -428,15 +452,15 @@ if __name__ == "__main__":
                 # Analyze plan BEFORE pushing code
                 analysis = analyze_plan(plan_output)
                 print(f"""
-================ AI Decision Summary ================
+                ================ AI Decision Summary ================
 
-Resources to Add    : {analysis['add']}
-Resources to Change : {analysis['change']}
-Resources to Destroy: {analysis['destroy']}
-Risk Level          : {analysis['risk']}
+                Resources to Add    : {analysis['add']}
+                Resources to Change : {analysis['change']}
+                Resources to Destroy: {analysis['destroy']}
+                Risk Level          : {analysis['risk']}
 
-====================================================
-""")
+                ====================================================
+             """)
                 
                 # Skip PR and push branch if there are no changes.
                 
@@ -447,12 +471,22 @@ Risk Level          : {analysis['risk']}
                 tfsec_output = run_tfsec()
                 cost_warnings = analyze_cost(plan_output)
                 policy = analyze_tfsec(tfsec_output)
+                # policy enforcement - block PR creation if critical issues are detected by tfsec
                 if policy["block"]:
                     print("\nPolicy violation detected. Blocking PR creation.")
                     print(f"\nreasons")
                     for w in policy["warnings"]:
                         print(f"- {w}")
                     break 
+                # Add approval gate and logic
+                decision = approval_decision(analysis, policy)
+                print(f"""
+                 ================ Approval Decision ================
+
+                 Decision : {decision}
+
+                ===================================================
+                  """)
                 
                 # Step 5: Create feature branch + push
                 branch_success, branch_name = push_feature_branch()
@@ -461,7 +495,7 @@ Risk Level          : {analysis['risk']}
                    print(f"\nBranch {branch_name} created and code pushed successfully!")
                    
                    #step6: create pull request 
-                   pr_success = create_pull_request(branch_name, plan_output,policy,cost_warnings)
+                   pr_success = create_pull_request(branch_name, plan_output,policy,cost_warnings,decision)
                   
                    if pr_success:
                        print(f"\nGitops workflow completed successfully")
