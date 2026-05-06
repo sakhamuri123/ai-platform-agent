@@ -49,6 +49,5 @@ resource "aws_route_table" "private" {
 }
 
 data "aws_availability_zones" "available" {
-  state  = "available"
-  region = "ap-south-1"
+  state = "available"
 }

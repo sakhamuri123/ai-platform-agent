@@ -198,13 +198,13 @@ def analyze_plan(plan_output):
 def generate_summary(analysis):
     #Input: analysis (dictionary from analyze_plan)
     summary = f"""
-### AI Infrastructure Analysis
+    ### AI Infrastructure Analysis
 
-- Resources to add: {analysis['add']}
-- Resources to change: {analysis['change']}
-- Resources to destroy: {analysis['destroy']}
-- Risk level: {analysis['risk']}
-"""
+    - Resources to add: {analysis["add"]}
+    - Resources to change: {analysis["change"]}
+    - Resources to destroy: {analysis["destroy"]}
+    - Risk level: {analysis["risk"]}
+     """
     if analysis["warnings"]:
        summary += "\n\n ## warnings: \n"
        for w in analysis["warnings"]:
@@ -328,7 +328,7 @@ def push_feature_branch():
         return False, None
 
 
-def create_pull_request(branch_name, analysis,security_analysis,cost_warnings,decision):
+def create_pull_request(branch_name,analysis,security_analysis,cost_warnings,decision):
     token = os.getenv("GITHUB_TOKEN")
     
     if not token:
