@@ -328,7 +328,7 @@ def push_feature_branch():
         return False, None
 
 
-def create_pull_request(branch_name, plan_output,policy,cost_warnings,decision):
+def create_pull_request(branch_name, analysis,security_analysis,cost_warnings,decision):
     token = os.getenv("GITHUB_TOKEN")
     
     if not token:
@@ -340,28 +340,22 @@ def create_pull_request(branch_name, plan_output,policy,cost_warnings,decision):
 
     url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/pulls"
     
-    tfsec_output = run_tfsec()
-    security_findings = analyze_tfsec(tfsec_output)
     
-    analysis = analyze_plan(plan_output)
     summary = generate_summary(analysis)
     
     
+    # Security and policy findings
     
-    if security_findings:
+    if security_analysis["warnings"]:
         summary += "\n\n## Security Findings from tfsec:\n"
-        for f in security_findings:
+        for f in security_analysis["warnings"]:
             summary += f"- {f}\n"
             
     if cost_warnings:
         summary += "\n\n## Cost Warnings:\n"
         for c in cost_warnings:
             summary += f"- {c}\n"
-    # policy warnings
-    if policy["warnings"]:
-        summary += "\n\n## Policy Warnings:\n"
-        for w in policy["warnings"]:
-            summary += f"- {w}\n"
+    
     # approval decision into summary
     summary += f"""\n\n #Approval decision
               - {decision}\n
@@ -469,17 +463,20 @@ if __name__ == "__main__":
                     break  
                 
                 tfsec_output = run_tfsec()
+                
+                security_analysis = analyze_tfsec(tfsec_output)
+                
                 cost_warnings = analyze_cost(plan_output)
-                policy = analyze_tfsec(tfsec_output)
+                
                 # policy enforcement - block PR creation if critical issues are detected by tfsec
-                if policy["block"]:
+                if security_analysis["block"]:
                     print("\nPolicy violation detected. Blocking PR creation.")
                     print(f"\nreasons")
-                    for w in policy["warnings"]:
+                    for w in security_analysis["warnings"]:
                         print(f"- {w}")
                     break 
                 # Add approval gate and logic
-                decision = approval_decision(analysis, policy)
+                decision = approval_decision(analysis, security_analysis)
                 print(f"""
                  ================ Approval Decision ================
 
@@ -495,7 +492,7 @@ if __name__ == "__main__":
                    print(f"\nBranch {branch_name} created and code pushed successfully!")
                    
                    #step6: create pull request 
-                   pr_success = create_pull_request(branch_name, plan_output,policy,cost_warnings,decision)
+                   pr_success = create_pull_request(branch_name, plan_output,security_analysis,cost_warnings,decision)
                   
                    if pr_success:
                        print(f"\nGitops workflow completed successfully")
