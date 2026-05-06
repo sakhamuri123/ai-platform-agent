@@ -492,7 +492,7 @@ if __name__ == "__main__":
                    print(f"\nBranch {branch_name} created and code pushed successfully!")
                    
                    #step6: create pull request 
-                   pr_success = create_pull_request(branch_name, plan_output,security_analysis,cost_warnings,decision)
+                   pr_success = create_pull_request(branch_name,analysis,security_analysis,cost_warnings,decision)
                   
                    if pr_success:
                        print(f"\nGitops workflow completed successfully")
