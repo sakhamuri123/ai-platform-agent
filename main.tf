@@ -16,23 +16,38 @@ terraform {
 
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
-  region     = "ap-south-1"
+
+  tags = {
+    Name = "Main VPC"
+  }
 }
 
 resource "aws_subnet" "public" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.1.0/24"
   availability_zone = data.aws_availability_zones.available.names[0]
+
+  tags = {
+    Name = "Public Subnet"
+  }
 }
 
 resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.2.0/24"
   availability_zone = data.aws_availability_zones.available.names[1]
+
+  tags = {
+    Name = "Private Subnet"
+  }
 }
 
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "Main IGW"
+  }
 }
 
 resource "aws_route_table" "public" {
@@ -42,10 +57,18 @@ resource "aws_route_table" "public" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.main.id
   }
+
+  tags = {
+    Name = "Public Route Table"
+  }
 }
 
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "Private Route Table"
+  }
 }
 
 data "aws_availability_zones" "available" {
