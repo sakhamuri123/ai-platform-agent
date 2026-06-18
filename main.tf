@@ -15,9 +15,7 @@ terraform {
 
 
 resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
-  enable_dns_hostnames = true
-  enable_dns_support   = true
+  cidr_block = "10.0.0.0/16"
 
   tags = {
     Name = "Main VPC"
@@ -74,6 +72,5 @@ resource "aws_route_table" "private" {
 }
 
 data "aws_availability_zones" "available" {
-  state  = "available"
-  region = "ap-south-1"
+  state = "available"
 }
