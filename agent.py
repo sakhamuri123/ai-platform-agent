@@ -49,6 +49,7 @@ Generate ONLY Terraform resource blocks for AWS infrastructure only in ap-south-
 3. Private subnet
 4. Internet gateway
 5. Route tables
+6. NAT gateway
 
 
 STRICT RULES:
