@@ -1,44 +1,34 @@
-import boto3
+from google import genai
 import subprocess
 import time
 import os, requests, re
 
-client = boto3.client("bedrock-runtime", region_name="ap-south-1")
+api_key = os.getenv("GEMINI_API_KEY")
+
+if not api_key:
+    raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+
+client = genai.Client(api_key=api_key)
 
 def generate_backend_config(env='dev', service='network'):
     return f"""
   terraform {{
       backend "s3" {{
-          bucket = "rajesh-platform-tf-state"
+          bucket = "rajesh-platform-tf-state-597734542697"
           key  = "{env}/{service}/terraform.tfstate"
           region = "ap-south-1"
-          dynamodb_table = "terraform-locks"
+          use_lockfile = true
           encrypt = true
       }}
   }}
   """
   
 def ask_llm(prompt):
-    response = client.converse(
-        modelId="anthropic.claude-3-haiku-20240307-v1:0",
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        
-                        "text": prompt
-                    }
-                ]
-            }
-        ],
-        inferenceConfig={
-            "maxTokens": 1000,
-            "temperature": 0.3
-        }
+    response = client.models.generate_content(
+        model="gemini-3.6-flash",
+        contents=prompt
     )
-
-    return response["output"]["message"]["content"][0]["text"]
+    return response.text
 
 def generate_terraform():
     prompt = """
@@ -49,6 +39,7 @@ Generate ONLY Terraform resource blocks for AWS infrastructure only in ap-south-
 3. Private subnet
 4. Internet gateway
 5. Route tables
+6. NAT gateway
 
 
 STRICT RULES:
