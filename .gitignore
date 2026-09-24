@@ -8,3 +8,11 @@ bootstrap/terraform.tfstate.backup
 bootstrap/*.tfstate
 bootstrap/*.tfstate.backup
 bootstrap/.terraform.lock.hcl
+# Python
+__pycache__/
+*.pyc
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
